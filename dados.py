@@ -1,65 +1,48 @@
 import pandas as pd
-from pathlib import Path
 
-COLUNAS_OBRIGATORIAS = ["year", "selling_price", "km_driven", "fuel",
-                        "seller_type", "transmission", "owner",
-                        "mileage", "engine", "max_power"]
+# Colunas obrigatórias dentro do csv enviado
+COLUNAS_OBRIGATORIAS = [
+    "year", "selling_price", "km_driven",
+    "fuel", "seller_type", "transmission", "owner",
+]
 
-# Caminho do arquivo
-ARQUIVO = Path("data/Car details v3.csv")
+# Dessas as que precisam ser números
+COLUNAS_NUMERICAS = [
+    "year", "selling_price", "km_driven"
+]
 
-# Lê o CSV e devolve um DataFrame; lança ValueError com mensagem clara se falhar
-def ler_csv(arquivo=ARQUIVO):
+# Lê o CSV e valida o formato.
+# 'arquivo' pode ser um caminho (str) ou o arquivo enviado no Flask.
+# Se algo estiver errado, levanta ValueError com uma mensagem em português.
+def ler_csv(arquivo):
     try:
         df = pd.read_csv(arquivo)
-    except FileNotFoundError:
-        raise ValueError("Arquivo não encontrado.")
     except pd.errors.EmptyDataError:
-        raise ValueError("O arquivo CSV está vazio.")
-    except pd.errors.ParserError:
-        raise ValueError("O arquivo CSV está corrompido ou mal formatado.")
+        raise ValueError("O arquivo está vazio.")
     except UnicodeDecodeError:
-        raise ValueError("Não foi possível ler a codificação do arquivo (use UTF-8).")
+        raise ValueError("Não foi possível ler o arquivo. Salve-o como CSV em UTF-8.")
+    except pd.errors.ParserError:
+        raise ValueError("O arquivo não parece ser um csv válido.")
 
     if df.empty:
-        raise ValueError("O arquivo não contém registros.")
-    return df
+        raise ValueError("O arquivo tem o cabeçalho, mas nenhuma linha de dados.")
 
-# Verifica se alguma coluna obrigatória está faltando
-def validar_colunas(df):
+    # Colunas obrigatórias (se o separador for ';' em vez de ',', cai aqui também)
     faltando = [c for c in COLUNAS_OBRIGATORIAS if c not in df.columns]
     if faltando:
-        raise ValueError(f"Colunas obrigatórias ausentes: {', '.join(faltando)}")
+        raise ValueError(
+            "Colunas obrigatórias ausentes: " + ", ".join(faltando) +
+            ". Confira os nomes e se o separador do arquivo é vírgula."
+        )
 
-# Converte "23.4 kmpl", "1248 CC" e "74 bhp" em números (consumo, cilindrada, potência)
-def extrair_numero(serie):
-    return pd.to_numeric(serie.astype(str).str.extract(r"([\d.]+)")[0], errors="coerce")
+    # Valores incompatíveis: texto onde deveria haver número
+    for col in COLUNAS_NUMERICAS:
+        convertida = pd.to_numeric(df[col], errors="coerce")
+        invalidos = convertida.isna() & df[col].notna()
+        if invalidos.any():
+            raise ValueError(
+                f"A coluna '{col}' tem {invalidos.sum()} valor(es) que não são números."
+            )
+        df[col] = convertida
 
-# Limpeza: converte texto em número, remove duplicatas e linhas com preço/km inválidos
-def limpar(df):
-    log = {"linhas_antes": len(df)}
-    df = df.copy()
-    for col in ["mileage", "engine", "max_power"]:
-        df[col] = extrair_numero(df[col])
-
-    n_duplicadas = int(df.duplicated().sum())
-    df = df.drop_duplicates()
-    log["duplicatas_removidas"] = n_duplicadas
-
-    antes = len(df)
-    df = df[(df["selling_price"] > 0) & (df["km_driven"] >= 0)]
-    log["removidas_preco_ou_km_invalido"] = antes - len(df)
-
-    df = df.reset_index(drop=True)
-    log["linhas_depois"] = len(df)
-    return df, log
-
-if __name__ == "__main__":
-    try:
-        dados = ler_csv()
-        validar_colunas(dados)
-        limpo, log = limpar(dados)
-        print(f"Sucesso! {dados.shape[0]} linhas e {dados.shape[1]} colunas.")
-        print(log)
-    except ValueError as e:
-        print(f"Erro: {e}")
+    return df
