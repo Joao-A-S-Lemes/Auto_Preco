@@ -1,10 +1,39 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Title</title>
-</head>
-<body>
+{% extends "base.html" %}
+{% block titulo %}Auto Preço - Enviar CSV{% endblock %}
 
-</body>
-</html>
+{% block conteudo %}
+<h2>Análise de preços de carros usados</h2>
+
+{% if erro %}
+<div class="erro"><strong>Não foi possível usar o arquivo.</strong> {{ erro }}</div>
+{% endif %}
+
+<div class="cartao">
+    <h3>Enviar arquivo CSV</h3>
+    <form method="post" action="{{ url_for('analise') }}" enctype="multipart/form-data">
+        <label for="arquivo">Arquivo CSV (separador vírgula, UTF-8)</label>
+        <input type="file" id="arquivo" name="arquivo" accept=".csv">
+
+        <label class="linha-check">
+            <input type="checkbox" name="usar_exemplo" value="1">
+            Usar o CSV de exemplo do projeto (Car details v3)
+        </label>
+
+        <button type="submit">Analisar</button>
+    </form>
+</div>
+
+<div class="cartao">
+    <h3>Formato esperado</h3>
+    <p>O arquivo precisa ter uma linha de cabeçalho com estas colunas (outras colunas são ignoradas):</p>
+    <ul class="colunas">
+        {% for c in colunas %}
+        <li><code>{{ c }}</code>{% if c in numericas %} (número){% endif %}</li>
+        {% endfor %}
+    </ul>
+    <p class="aviso">
+        <code>selling_price</code> é o preço de venda em rupias indianas (₹), que o modelo aprende a prever.
+        Valores que não são números nas colunas numéricas, arquivo vazio ou colunas faltando geram uma mensagem de erro.
+    </p>
+</div>
+{% endblock %}

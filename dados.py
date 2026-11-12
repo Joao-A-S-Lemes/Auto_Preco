@@ -1,6 +1,7 @@
 import pandas as pd
 from datetime import date
 import os
+import numpy as np
 import matplotlib
 matplotlib.use("Agg")   # modo sem janela: obrigatório para usar matplotlib dentro do Flask
 import matplotlib.pyplot as plt
@@ -15,6 +16,18 @@ COLUNAS_OBRIGATORIAS = [
 COLUNAS_NUMERICAS = [
     "year", "selling_price", "km_driven"
 ]
+
+# Categorias aceitas no dataset de referência. Valores fora dessas listas
+# são rejeitados para evitar análises com categorias inesperadas ou erros de digitação.
+CATEGORIAS_ACEITAS = {
+    "fuel": {"Petrol", "Diesel", "CNG", "LPG"},
+    "seller_type": {"Individual", "Dealer", "Trustmark Dealer"},
+    "transmission": {"Manual", "Automatic"},
+    "owner": {
+        "First Owner", "Second Owner", "Third Owner",
+        "Fourth & Above Owner", "Test Drive Car",
+    },
+}
 
 # Lê o CSV e valida o formato.
 # 'arquivo' pode ser um caminho (str) ou o arquivo enviado no Flask.
@@ -48,7 +61,29 @@ def ler_csv(arquivo):
             raise ValueError(
                 f"A coluna '{col}' tem {invalidos.sum()} valor(es) que não são números."
             )
+        # NaN será tratado pela etapa de limpeza; infinito não é um valor válido.
+        infinitos = ~np.isfinite(convertida.dropna().astype(float))
+        if infinitos.any():
+            raise ValueError(f"A coluna '{col}' contém valor(es) infinitos ou inválidos.")
         df[col] = convertida
+
+    # O ano representa um ano-calendário, portanto precisa ser inteiro.
+    anos_validos = df["year"].dropna()
+    if ((anos_validos % 1) != 0).any():
+        raise ValueError("A coluna 'year' deve conter anos inteiros (ex.: 2018).")
+
+    # Validação de categorias: não aceitar silenciosamente grafias ou classes desconhecidas.
+    for coluna, permitidas in CATEGORIAS_ACEITAS.items():
+        presentes = set(df[coluna].dropna().astype(str).str.strip().unique())
+        desconhecidas = sorted(presentes - permitidas)
+        if desconhecidas:
+            exemplos = ", ".join(desconhecidas[:5])
+            raise ValueError(
+                f"A coluna '{coluna}' contém categoria(s) não reconhecida(s): {exemplos}. "
+                f"Confira as opções aceitas no README."
+            )
+        # Remove espaços acidentais nas categorias conhecidas.
+        df[coluna] = df[coluna].apply(lambda valor: valor.strip() if isinstance(valor, str) else valor)
 
     return df
 
@@ -72,7 +107,7 @@ def diagnosticar(df):
         "linhas": len(df),
         "colunas": df.shape[1],
         "tipos": df.dtypes.astype(str).to_dict(),
-        "ausentes": {c: int(n) for c, n in df[COLUNAS_OBRIGATORIAS].isna().sum().items()},
+        "ausentes": {c: int(n) for c, n in df.isna().sum().items()},
         "duplicadas": int(df.duplicated().sum()),
         "impossiveis": int(_mascara_impossiveis(df).sum()),
         "km_acima_do_limite": int((df["km_driven"] > KM_MAXIMO).sum()),

@@ -1,10 +1,87 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Title</title>
-</head>
-<body>
+{% extends "base.html" %}
+{% block titulo %}Auto Preço - Análise{% endblock %}
 
-</body>
-</html>
+{% block conteudo %}
+<h2>Resultado da análise</h2>
+<p class="aviso">Fonte: <strong>{{ origem }}</strong>. O arquivo original não é alterado: a limpeza é feita em uma cópia.</p>
+
+<div class="cartao">
+    <h3>Tamanho da base</h3>
+    <div class="grade">
+        <div class="metrica"><div class="numero">{{ diagnostico.linhas | rs }}</div><div class="rotulo">registros enviados</div></div>
+        <div class="metrica"><div class="numero">{{ diagnostico.colunas }}</div><div class="rotulo">colunas</div></div>
+        <div class="metrica"><div class="numero">{{ tamanhos.depois | rs }}</div><div class="rotulo">registros após a limpeza</div></div>
+        <div class="metrica"><div class="numero">{{ (tamanhos.antes - tamanhos.depois) | rs }}</div><div class="rotulo">registros removidos</div></div>
+    </div>
+</div>
+
+<div class="cartao">
+    <h3>Amostra dos dados (10 primeiras linhas, antes da limpeza)</h3>
+    <div class="tabela-rolavel">{{ amostra | safe }}</div>
+</div>
+
+<div class="cartao">
+    <h3>Diagnóstico (antes da limpeza)</h3>
+    <div class="grade">
+        <div class="metrica"><div class="numero">{{ diagnostico.duplicadas | rs }}</div><div class="rotulo">linhas duplicadas</div></div>
+        <div class="metrica"><div class="numero">{{ diagnostico.impossiveis | rs }}</div><div class="rotulo">valores impossíveis</div></div>
+        <div class="metrica"><div class="numero">{{ diagnostico.km_acima_do_limite | rs }}</div><div class="rotulo">km acima de 500.000</div></div>
+    </div>
+    <div class="tabela-rolavel">
+        <table>
+            <tr><th>Coluna</th><th>Tipo</th><th>Valores ausentes</th></tr>
+            {% for coluna, tipo in diagnostico.tipos.items() %}
+            <tr>
+                <td>{{ coluna }}</td>
+                <td>{{ tipo }}</td>
+                <td>{{ diagnostico.ausentes.get(coluna, "não verificado") }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+
+<div class="cartao">
+    <h3>Tratamento aplicado</h3>
+    <div class="tabela-rolavel">
+        <table>
+            <tr><th>Etapa</th><th>Linhas removidas</th><th>Justificativa</th></tr>
+            {% for r in registro %}
+            <tr><td>{{ r.etapa }}</td><td>{{ r.removidas }}</td><td>{{ r.justificativa }}</td></tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+
+<h2>Achados</h2>
+{% for a in achados %}
+<div class="cartao">
+    <h3>{{ loop.index }}. {{ a.titulo }}</h3>
+    <p>{{ a.texto }}</p>
+    <div class="tabela-rolavel">
+        <table>
+            <tr>{% for chave in a.tabela[0].keys() %}<th>{{ chave }}</th>{% endfor %}</tr>
+            {% for linha in a.tabela %}
+            <tr>{% for valor in linha.values() %}<td>{{ valor }}</td>{% endfor %}</tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+{% endfor %}
+
+<h2>Gráficos</h2>
+{% for g in graficos %}
+<div class="cartao">
+    <h3>{{ g.titulo }}</h3>
+    <img class="grafico" src="{{ url_for('static', filename='graficos/' ~ g.arquivo, v=versao) }}" alt="{{ g.titulo }}">
+    <p>{{ g.texto }}</p>
+</div>
+{% endfor %}
+
+<div class="cartao">
+    <h3>Próximo passo</h3>
+    <p>Com a base entendida, estime o preço de um carro específico.</p>
+    <a class="botao" href="{{ url_for('previsao') }}">Ir para a previsão</a>
+    <a class="botao" href="{{ url_for('index') }}">Enviar outro arquivo</a>
+</div>
+{% endblock %}

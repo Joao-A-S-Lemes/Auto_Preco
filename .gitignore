@@ -1,3 +1,6 @@
+# gráficos gerados pelo app (são recriados a cada análise)
+static/graficos/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

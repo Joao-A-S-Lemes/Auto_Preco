@@ -1,0 +1,23 @@
+{
+  "base_de_treino": "data/Car details v3.csv",
+  "treinado_em": "2026-11-12 15:32",
+  "versao_scikit_learn": "1.9.1",
+  "linhas_antes_da_limpeza": 8128,
+  "linhas_depois_da_limpeza": 6923,
+  "linhas_treino": 5538,
+  "linhas_teste": 1385,
+  "random_state": 42,
+  "modelo_escolhido": "Random Forest Regressor",
+  "resultados": {
+    "Linear Regression": {
+      "mae": 214958.19384508033,
+      "r2": 0.3986929676084815,
+      "erro_percentual": 41.881009257057386
+    },
+    "Random Forest Regressor": {
+      "mae": 185251.81612950691,
+      "r2": 0.49077591438466794,
+      "erro_percentual": 36.09321834829949
+    }
+  }
+}

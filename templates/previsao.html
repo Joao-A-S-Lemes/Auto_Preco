@@ -1,10 +1,93 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Title</title>
-</head>
-<body>
+{% extends "base.html" %}
+{% block titulo %}Auto Preço - Previsão{% endblock %}
 
-</body>
-</html>
+{% block conteudo %}
+<h2>Previsão de preço de um carro usado</h2>
+
+{% if erro %}
+<div class="erro"><strong>Confira os dados.</strong> {{ erro }}</div>
+{% endif %}
+
+{% if resultado is not none %}
+<div class="resultado">
+    <div>Preço estimado</div>
+    <div class="valor">₹ {{ resultado | rs }}</div>
+    <div class="aviso">Estimativa aproximada feita pelo modelo {{ nome_modelo }}; o preço real pode ser bem diferente.</div>
+</div>
+{% endif %}
+
+{% if nome_modelo %}
+<div class="cartao">
+    <form method="post" action="{{ url_for('previsao') }}">
+        <label for="year">Ano de fabricação <small>({{ ano_min }} a {{ ano_max }})</small></label>
+        <input type="number" id="year" name="year" min="{{ ano_min }}" max="{{ ano_max }}" step="1"
+               value="{{ valores.get('year', '') }}" placeholder="Ex.: 2015" required>
+
+        <label for="km_driven">Quilometragem rodada <small>(km, de 0 a {{ km_max | rs }})</small></label>
+        <input type="number" id="km_driven" name="km_driven" min="0" max="{{ km_max }}" step="any"
+               value="{{ valores.get('km_driven', '') }}" placeholder="Ex.: 60000" required>
+
+        <label for="fuel">Combustível</label>
+        <select id="fuel" name="fuel" required>
+            {% for valor, texto in opcoes.fuel.items() %}
+            <option value="{{ valor }}" {% if valores.get('fuel') == valor %}selected{% endif %}>{{ texto }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="transmission">Transmissão</label>
+        <select id="transmission" name="transmission" required>
+            {% for valor, texto in opcoes.transmission.items() %}
+            <option value="{{ valor }}" {% if valores.get('transmission') == valor %}selected{% endif %}>{{ texto }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="seller_type">Tipo de vendedor</label>
+        <select id="seller_type" name="seller_type" required>
+            {% for valor, texto in opcoes.seller_type.items() %}
+            <option value="{{ valor }}" {% if valores.get('seller_type') == valor %}selected{% endif %}>{{ texto }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="owner">Número de donos anteriores</label>
+        <select id="owner" name="owner" required>
+            {% for valor, texto in opcoes.owner.items() %}
+            <option value="{{ valor }}" {% if valores.get('owner') == valor %}selected{% endif %}>{{ texto }}</option>
+            {% endfor %}
+        </select>
+
+        <button type="submit">Prever preço</button>
+    </form>
+</div>
+
+{% if metricas %}
+<div class="cartao">
+    <h3>Comparação dos modelos</h3>
+    <p>Os dois modelos foram avaliados na mesma divisão de treino e teste: {{ metricas.linhas_treino | rs }} carros para treino e {{ metricas.linhas_teste | rs }} para teste.</p>
+    <div class="tabela-rolavel">
+        <table class="tabela">
+            <thead>
+                <tr><th>Modelo</th><th>MAE (₹)</th><th>R²</th><th>MAE / preço médio</th></tr>
+            </thead>
+            <tbody>
+                {% for item in metricas.comparacao %}
+                <tr>
+                    <td>{{ item.nome }}{% if item.nome == metricas.modelo %} <strong>(escolhido)</strong>{% endif %}</td>
+                    <td>₹ {{ item.mae | rs }}</td>
+                    <td>{{ "%.3f" | format(item.r2) }}</td>
+                    <td>{{ "%.1f" | format(item.erro_percentual) }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p>O {{ metricas.modelo }} foi escolhido por apresentar o menor MAE. Seu erro absoluto médio foi de ₹ {{ metricas.mae | rs }}, equivalente a {{ "%.1f" | format(metricas.erro_percentual) }}% do preço médio dos carros no conjunto de teste. R² = {{ "%.3f" | format(metricas.r2) }}.</p>
+</div>
+{% endif %}
+
+<p class="aviso">
+    O modelo ({{ nome_modelo }}) foi treinado uma vez com a base <code>data/Car details v3.csv</code>.
+    O CSV enviado na página de análise atualiza os gráficos, mas não retreina o modelo.
+    Valores em rupias indianas (₹).
+</p>
+{% endif %}
+{% endblock %}

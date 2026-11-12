@@ -1,5 +1,9 @@
+import json
+import os
+from datetime import datetime
+
 import joblib
-import pandas as pd
+import sklearn
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
@@ -8,92 +12,100 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 
-# 1. Carregamento dos dados (ajuste o caminho se necessário para 'data/Car details v3.csv')
-df = pd.read_csv("data/Car details v3.csv")
+from dados import ler_csv, limpar   # reaproveita a leitura e a limpeza já validadas
 
-# Exemplo básico de limpeza (remover nulos na coluna alvo 'selling_price', se houver)
-df = df.dropna(subset=["selling_price"])
+CAMINHO_CSV = "data/Car details v3.csv"
+CAMINHO_MODELO = "models/modelo.joblib"
+CAMINHO_METRICAS = "models/metricas.json"
+RANDOM_STATE = 42
 
-# Definir features (X) e target (y)
-# Certifique-se de que essas colunas existem no seu dataset 'Car details v3.csv'
-features_categoricas = ["fuel", "transmission", "seller_type", "owner"]
-features_numericas = [
-    "year",
-    "km_driven",
-]  # Adicione outras numéricas se houver no seu dataset
+# X (variáveis usadas para prever) e y (o que queremos prever)
+FEATURES_CATEGORICAS = ["fuel", "transmission", "seller_type", "owner"]
+FEATURES_NUMERICAS = ["year", "km_driven"]
+ALVO = "selling_price"
 
-X = df[features_categoricas + features_numericas]
-y = df["selling_price"]
 
-# 2.5 Treino e teste (Proporção 80/20 e random_state=42)
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.20, random_state=42
-)
-print(f"Proporção de treino: {len(X_train)} amostras (80%)")
-print(f"Proporção de teste: {len(X_test)} amostras (20%)")
-print(f"Random State utilizado: 42\n")
-
-# Configuração do pré-processador com ColumnTransformer
-# O OneHotEncoder transforma as colunas categóricas. 'handle_unknown="ignore"' evita erros com categorias novas no teste.
-preprocessor = ColumnTransformer(
-    transformers=[
-        (
-            "cat",
-            OneHotEncoder(handle_unknown="ignore", sparse_output=False),
-            features_categoricas,
-        )
-    ],
-    remainder="passthrough",  # Mantém as colunas numéricas intactas
-)
-
-# 2.6 Comparar dois modelos usando Pipeline
-modelos = {
-    "Linear Regression": LinearRegression(),
-    "Random Forest Regressor": RandomForestRegressor(
-        random_state=42
-    ),  # fixando seed para reprodutibilidade
-}
-
-resultados = {}
-
-print("--- Avaliação dos Modelos ---")
-preco_medio = y_test.mean()
-
-for nome, modelo in modelos.items():
-    # Criando a Pipeline que une a transformação e o modelo
-    pipeline = Pipeline(
-        steps=[("preprocessor", preprocessor), ("regressor", modelo)]
+def criar_pipeline(modelo):
+    # Pré-processamento + modelo em um só objeto.
+    # O OneHotEncoder só é ajustado quando chamamos fit() com os dados de TREINO.
+    preprocessor = ColumnTransformer(
+        transformers=[
+            ("cat",
+             OneHotEncoder(handle_unknown="ignore", sparse_output=False),
+             FEATURES_CATEGORICAS),
+        ],
+        remainder="passthrough",   # year e km_driven passam sem alteração
     )
+    return Pipeline(steps=[("preprocessor", preprocessor), ("regressor", modelo)])
 
-    # Ajuste do encoder e do modelo estritamente nos dados de treino
-    pipeline.fit(X_train, y_train)
 
-    # Predições no conjunto de teste
-    y_pred = pipeline.predict(X_test)
+def treinar(caminho_csv=CAMINHO_CSV):
+    # 1. Leitura e limpeza (as mesmas do dados.py, ANTES de dividir treino e teste)
+    df = ler_csv(caminho_csv)
+    df_limpo, registro, tamanhos = limpar(df)
+    print(f"Base: {tamanhos['antes']} linhas antes da limpeza, {tamanhos['depois']} depois.")
 
-    # Métricas solicitadas: MAE e R²
-    mae = mean_absolute_error(y_test, y_pred)
-    r2 = r2_score(y_test, y_pred)
+    X = df_limpo[FEATURES_CATEGORICAS + FEATURES_NUMERICAS]
+    y = df_limpo[ALVO]
 
-    # Porcentagem do erro em relação ao preço médio
-    porcentagem_erro = (mae / preco_medio) * 100
-
-    resultados[nome] = {"pipeline": pipeline, "mae": mae, "r2": r2}
-
-    print(f"\nModelo: {nome}")
-    print(
-        f"- MAE: ₹ {mae:,.2f} (O modelo erra em média cerca de ₹ {mae:,.0f} rupias, o que representa {porcentagem_erro:.2f}% do preço médio dos carros)."
+    # 2. Divisão treino/teste: 80% / 20%
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.20, random_state=RANDOM_STATE
     )
-    print(f"- R² (Coeficiente de Determinação): {r2:.4f}")
+    print(f"Treino: {len(X_train)} amostras (80%) | Teste: {len(X_test)} amostras (20%)")
+    print(f"random_state: {RANDOM_STATE}\n")
 
-# Escolha final com base no menor MAE (Exemplo de lógica de salvamento)
-melhor_nome = min(resultados, key=lambda k: resultados[k]["mae"])
-melhor_pipeline = resultados[melhor_nome]["pipeline"]
+    # 3. Comparação dos dois modelos (mesma divisão, mesmas métricas)
+    modelos = {
+        "Linear Regression": LinearRegression(),
+        "Random Forest Regressor": RandomForestRegressor(random_state=RANDOM_STATE),
+    }
+    preco_medio = y_test.mean()
+    resultados = {}
 
-print(
-    f"\n==> Escolha Final: {melhor_nome} foi o selecionado por apresentar o menor MAE."
-)
+    for nome, modelo in modelos.items():
+        pipeline = criar_pipeline(modelo)
+        pipeline.fit(X_train, y_train)        # ajusta encoder e modelo SÓ no treino
+        y_pred = pipeline.predict(X_test)     # prevê no teste (dados nunca vistos)
 
-# Salvando o modelo escolhido para uso no Flask (app.py / modelo.py)
-joblib.dump(melhor_pipeline, "modelo_escolhido.pkl")
-print("Modelo salvo com sucesso como 'modelo_escolhido.pkl'!")
+        mae = mean_absolute_error(y_test, y_pred)
+        r2 = r2_score(y_test, y_pred)
+        resultados[nome] = {
+            "pipeline": pipeline,
+            "mae": float(mae),
+            "r2": float(r2),
+            "erro_percentual": float(mae / preco_medio * 100),
+        }
+        print(f"Modelo: {nome}")
+        print(f"  MAE: Rs {mae:,.0f} ({mae / preco_medio * 100:.1f}% do preço médio de teste)")
+        print(f"  R2:  {r2:.4f}\n")
+
+    # 4. Escolha final: menor MAE
+    melhor_nome = min(resultados, key=lambda k: resultados[k]["mae"])
+    print(f"==> Escolha final: {melhor_nome} (menor MAE)")
+
+    # 5. Salva o Pipeline completo e um resumo do treino
+    os.makedirs("models", exist_ok=True)
+    joblib.dump(resultados[melhor_nome]["pipeline"], CAMINHO_MODELO)
+
+    resumo = {
+        "base_de_treino": caminho_csv,
+        "treinado_em": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "versao_scikit_learn": sklearn.__version__,
+        "linhas_antes_da_limpeza": tamanhos["antes"],
+        "linhas_depois_da_limpeza": tamanhos["depois"],
+        "linhas_treino": len(X_train),
+        "linhas_teste": len(X_test),
+        "random_state": RANDOM_STATE,
+        "modelo_escolhido": melhor_nome,
+        "resultados": {n: {k: v for k, v in r.items() if k != "pipeline"}
+                       for n, r in resultados.items()},
+    }
+    with open(CAMINHO_METRICAS, "w", encoding="utf-8") as f:
+        json.dump(resumo, f, indent=2, ensure_ascii=False)
+    print(f"Modelo salvo em '{CAMINHO_MODELO}' e resumo em '{CAMINHO_METRICAS}'.")
+    return resumo
+
+
+if __name__ == "__main__":
+    treinar()

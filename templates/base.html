@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block titulo %}Auto Preço{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <header>
+        <div class="conteudo">
+            <h1>Auto Preço</h1>
+            <nav>
+                <a href="{{ url_for('index') }}" {% if request.endpoint in ('index', 'analise') %}class="ativo"{% endif %}>Análise de dados</a>
+                <a href="{{ url_for('previsao') }}" {% if request.endpoint == 'previsao' %}class="ativo"{% endif %}>Previsão de preço</a>
+            </nav>
+        </div>
+    </header>
+    <main class="conteudo">
+        {% block conteudo %}{% endblock %}
+    </main>
+</body>
+</html>
