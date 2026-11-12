@@ -10,11 +10,11 @@ Dadas as características de um carro usado (ano, quilometragem, combustível, t
 
 ## Integrantes e responsabilidades
 
-| Integrante | Responsabilidade |
-|---|---|
-| Leonardo da Cruz | Desenvolvimento da aplicação web com Flask e implementação, treinamento e avaliação dos modelos de Machine Learning. |
-| João Antonio | PREENCHER |
-| Tiago Galhoto | PREENCHER |
+| Integrante | Responsabilidade                                                                          |
+|---|-------------------------------------------------------------------------------------------|
+| Leonardo da Cruz | Desenvolvimento e integração da aplicação Flask.                                          |
+| João Antonio | Estruturação do projeto e desenvolvimento do módulo de tratamento dos dados . |
+| Tiago Galhoto | Desenvolvimento, treinamento e avaliação dos modelos de Machine Learning.                 |
 
 ## Instalação e execução
 
